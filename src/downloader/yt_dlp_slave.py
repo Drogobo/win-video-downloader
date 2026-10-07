@@ -474,6 +474,7 @@ class YoutubeDLSlave:
                         'download folder: %s') % e)
                     sys.exit(1)
                 # Delete download directory
+                os.chdir(download_dir)
                 with contextlib.suppress(OSError):
                     shutil.rmtree(temp_download_dir)
                 self._handler.on_download_finished(filename)

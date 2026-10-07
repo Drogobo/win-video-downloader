@@ -15,12 +15,9 @@
 # You should have received a copy of the GNU General Public License
 # along with Video Downloader.  If not, see <http://www.gnu.org/licenses/>.
 
-import contextlib
-import fcntl
 import functools
 import os
 import re
-import signal
 import subprocess
 import sys
 import traceback
@@ -28,7 +25,7 @@ import typing
 
 from gi.repository import GLib
 
-from video_downloader.util import g_log
+from video_downloader.util import g_log, os_compat
 from video_downloader.util.response import AsyncResponse, Response
 from video_downloader.util.rpc import handle_rpc_request, rpc_response
 
@@ -62,11 +59,11 @@ class Downloader:
         # Start child process in its own process group to shield it from
         # signals by terminals (e.g. SIGINT) and to identify remaning children.
         # yt-dlp doesn't kill ffmpeg and other subprocesses on error.
-        self._process = subprocess.Popen(
-            [sys.executable, '-u', '-m', 'video_downloader.downloader'],
+        self._process = os_compat.popen_process_group(
+            os_compat.python_module_command('video_downloader.downloader'),
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE, env={**os.environ, **extra_env},
-            universal_newlines=True, preexec_fn=os.setpgrp)
+            universal_newlines=True)
         # WARNING: O_NONBLOCK can break mult ibyte decoding and line splitting
         # under rare circumstances.
         # E.g. when the buffer only includes the first byte of a multi byte
@@ -77,15 +74,11 @@ class Downloader:
         # normally block to read the next byte and check if it's `b'\n'`.
         # This does not work with O_NONBLOCK, and it gets transformed to `'\n'`
         # directly. The line ending `b'\r\n'` will be transformed to `'\n\n'`.
-        fcntl.fcntl(self._process.stdout, fcntl.F_SETFL, os.O_NONBLOCK)
-        fcntl.fcntl(self._process.stderr, fcntl.F_SETFL, os.O_NONBLOCK)
         self._process.stdout_remainder = self._process.stderr_remainder = b''
-        GLib.unix_fd_add_full(
-            GLib.PRIORITY_DEFAULT_IDLE, self._process.stdout.fileno(),
-            GLib.IOCondition.IN, self._on_process_stdout, self._process)
-        GLib.unix_fd_add_full(
-            GLib.PRIORITY_DEFAULT_IDLE, self._process.stderr.fileno(),
-            GLib.IOCondition.IN, self._on_process_stderr, self._process)
+        os_compat.watch_pipe(
+            self._process.stdout, self._on_process_stdout, self._process)
+        os_compat.watch_pipe(
+            self._process.stderr, self._on_process_stderr, self._process)
 
     def _finish_process_and_kill_pgrp(self):
         assert self._process
@@ -99,8 +92,7 @@ class Downloader:
             process.wait()
         finally:
             # Kill remaining children identified by process group
-            with contextlib.suppress(OSError):
-                os.killpg(process.pid, signal.SIGKILL)
+            os_compat.kill_process_group(process)
         return process.returncode
 
     def _pending_response_callback(self, process, request_line, response):
@@ -121,9 +113,7 @@ class Downloader:
                   traceback.format_exc())
             process.terminate()
 
-    def _on_process_stdout(self, fd, condition, process):
-        # Don't use `process.stdout.read` because of O_NONBLOCK (see `start`)
-        s = process.stdout.buffer.read()
+    def _on_process_stdout(self, s, process):
         pipe_closed = not s
         process.stdout_remainder += s
         *lines, process.stdout_remainder = _SPLITLINES_RE.split(
@@ -161,9 +151,7 @@ class Downloader:
             self._handler.on_finished(returncode == 0 and not failure)
         return not pipe_closed
 
-    def _on_process_stderr(self, fd, condition, process):
-        # Don't use `process.stderr.read` because of O_NONBLOCK (see `start`)
-        s = process.stderr.buffer.read()
+    def _on_process_stderr(self, s, process):
         pipe_closed = not s
         process.stderr_remainder += s
         if pipe_closed:

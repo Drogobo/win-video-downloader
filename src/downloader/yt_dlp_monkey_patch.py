@@ -19,6 +19,7 @@ import io
 import os
 import subprocess
 import sys
+import tempfile
 import threading
 
 
@@ -70,6 +71,18 @@ def patch_getcwd():
     os.chdir = patched_chdir
 
 
+def patch_temporary_directory():
+    class TemporaryDirectory(tempfile.TemporaryDirectory):
+        def __exit__(self, *args):
+            # Windows can't delete the current working directory
+            path = os.path.normcase(os.path.abspath(self.name))
+            cwd = os.path.normcase(os.getcwd())
+            if cwd == path or cwd.startswith(path + os.sep):
+                os.chdir(os.path.dirname(path))
+            return super().__exit__(*args)
+    tempfile.TemporaryDirectory = TemporaryDirectory
+
+
 def install_monkey_patches():
     # ffmpeg writes progress information to stderr, but yt-dlp captures it
     # by default. Overriding this behavior allows us to show activity while
@@ -78,3 +91,5 @@ def install_monkey_patches():
     # getcwd is broken inside of xdg-desktop-portal FUSE for documents
     if os.name == 'posix':
         patch_getcwd()
+    if os.name == 'nt':
+        patch_temporary_directory()

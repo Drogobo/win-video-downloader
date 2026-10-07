@@ -245,7 +245,9 @@ class Window(Adw.ApplicationWindow, HandlerInterface):
     def _update_finished_download_dir_wdg_tooltip(self, download_dir):
         if download_dir:
             home_dir = os.path.expanduser('~')
-            if os.path.commonpath([home_dir, download_dir]) == home_dir:
+            if (os.path.splitdrive(home_dir)[0] ==
+                    os.path.splitdrive(download_dir)[0] and
+                    os.path.commonpath([home_dir, download_dir]) == home_dir):
                 download_dir = '~' + download_dir[len(home_dir):]
         self.finished_download_dir_wdg.set_tooltip_text(download_dir)
 

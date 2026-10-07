@@ -1,5 +1,6 @@
 video_downloader_sources = files([
   'connection.py',
+  'os_compat.py',
   '__init__.py',
   'path.py',
   'response.py',

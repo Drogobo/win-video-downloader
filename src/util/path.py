@@ -22,7 +22,7 @@ import traceback
 
 from gi.repository import Gio, GLib
 
-from video_downloader.util import g_log, gobject_log
+from video_downloader.util import g_log, gobject_log, os_compat
 
 
 def expand_path(path):
@@ -37,7 +37,10 @@ def expand_path(path):
                 ['xdg-user-dir', name], universal_newlines=True,
                 stdin=subprocess.DEVNULL).splitlines()[0]
         except FileNotFoundError:
-            parts[0] = home_dir
+            parts[0] = os_compat.user_special_dir(name) or home_dir
+    if os_compat.IS_WINDOWS:
+        # Keep drive letters (e.g. `C:`) intact
+        return os.path.normpath(os.path.join(home_dir, os.sep.join(parts)))
     return os.path.normpath(os.path.join(os.sep, *parts))
 
 
@@ -52,6 +55,8 @@ def decode_filesystem_path(path):
 
 
 def open_in_file_manager(directory, filenames):
+    if os_compat.open_in_file_manager(directory, filenames):
+        return
     # org.freedesktop.portal.Documents
     portal_documents_proxy = gobject_log(Gio.DBusProxy.new_for_bus_sync(
         Gio.BusType.SESSION, Gio.DBusProxyFlags.DO_NOT_LOAD_PROPERTIES |
