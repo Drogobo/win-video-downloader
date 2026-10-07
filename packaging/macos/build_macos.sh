@@ -32,11 +32,21 @@ brew install --quiet meson ninja gettext librsvg desktop-file-utils \
 BREW_PREFIX="$(brew --prefix)"
 export PATH="$BREW_PREFIX/bin:$BREW_PREFIX/opt/gettext/bin:$PATH"
 
-# Use the Python version that pygobject3 was built for
-PYTHON_FORMULA="$(brew deps --direct pygobject3 | grep -E '^python@3' |
-    sort -V | tail -n 1)"
-PYTHON="$(brew --prefix "$PYTHON_FORMULA")/libexec/bin/python3"
-log "Using $PYTHON_FORMULA"
+# Use the newest Homebrew Python that pygobject3 is installed for
+PYTHON=""
+for formula in $(brew list --formula | grep -E '^python@3\.[0-9]+$' |
+        sort -V -r); do
+    candidate="$(brew --prefix "$formula")/libexec/bin/python3"
+    if [[ -x "$candidate" ]] && "$candidate" -c 'import gi' 2>/dev/null; then
+        PYTHON="$candidate"
+        log "Using $formula"
+        break
+    fi
+done
+if [[ -z "$PYTHON" ]]; then
+    echo "ERROR: no Homebrew Python with PyGObject found" >&2
+    exit 1
+fi
 
 mkdir -p "$BUILD_DIR" "$DIST_DIR"
 VENV="$BUILD_DIR/venv"
