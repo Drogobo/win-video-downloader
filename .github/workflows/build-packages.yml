@@ -86,6 +86,10 @@ jobs:
         run: |
           app="packaging/build/macos/dist/Video Downloader.app"
           exe="$app/Contents/MacOS/Video Downloader"
+          # The bundled tools work (and find their libraries)
+          "$app/Contents/Frameworks/tools/ffmpeg" -hide_banner -version
+          "$app/Contents/Frameworks/tools/ffprobe" -hide_banner -version
+          "$app/Contents/Frameworks/tools/deno" --version
           # The download process starts and sends its first request
           "$exe" --run-module video_downloader.downloader < /dev/null \
             > child.txt 2>&1 || true
