@@ -30,7 +30,7 @@ Build:
 ```
 
 The output is `packaging/dist/VideoDownloader-<version>-windows-x64.zip`
-(about 150–250 MB). Downloads are cached in `packaging/build/`, so later
+(about 330 MB). Downloads are cached in `packaging/build/`, so later
 builds are faster.
 
 **For your friend:** extract the zip (right-click → *Extract All*) and
@@ -61,9 +61,9 @@ Windows machine.
    - `VideoDownloader-macos-x86_64`: Intel Macs
    - `VideoDownloader-windows-x64`
 
-Mac runners use 10× the minutes of Linux runners on private repositories
-(GitHub Free includes 2,000 minutes a month), so each run costs roughly
-150–300 minutes.
+On private repositories, Mac runners count 10× and Windows runners 2× against
+the monthly Actions minutes (GitHub Free includes 2,000), so each run costs
+roughly 100 minutes. The `.dmg` files are about 110–130 MB.
 
 ### On a Mac
 
