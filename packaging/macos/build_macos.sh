@@ -32,20 +32,24 @@ brew install --quiet meson ninja gettext librsvg desktop-file-utils \
 BREW_PREFIX="$(brew --prefix)"
 export PATH="$BREW_PREFIX/bin:$BREW_PREFIX/opt/gettext/bin:$PATH"
 
-# Use the newest Homebrew Python that pygobject3 is installed for
-PYTHON=""
-for formula in $(brew list --formula | grep -E '^python@3\.[0-9]+$' |
-        sort -V -r); do
-    candidate="$(brew --prefix "$formula")/libexec/bin/python3"
-    if [[ -x "$candidate" ]] && "$candidate" -c 'import gi' 2>/dev/null; then
-        PYTHON="$candidate"
-        log "Using $formula"
-        break
-    fi
-done
-if [[ -z "$PYTHON" ]]; then
-    echo "ERROR: no Homebrew Python with PyGObject found" >&2
+# Use the Python version that pygobject3 is installed for
+PYGOBJECT_PREFIX="$(brew --prefix pygobject3)"
+GI_INIT="$(find -L "$PYGOBJECT_PREFIX" \
+    -path '*/python3.*/site-packages/gi/__init__.py' | sort -V | tail -n 1)"
+if [[ -z "$GI_INIT" ]]; then
+    echo "ERROR: PyGObject not found in $PYGOBJECT_PREFIX:" >&2
+    find -L "$PYGOBJECT_PREFIX" -maxdepth 4 >&2
     exit 1
+fi
+PYTHON_VERSION="$(sed -E 's|.*/python(3\.[0-9]+)/site-packages/.*|\1|' \
+    <<< "$GI_INIT")"
+brew install --quiet "python@$PYTHON_VERSION"
+PYTHON="$(brew --prefix "python@$PYTHON_VERSION")/bin/python$PYTHON_VERSION"
+log "Using $PYTHON"
+if ! "$PYTHON" -c 'import gi'; then
+    # pygobject3 isn't linked into Homebrew's site-packages
+    export PYTHONPATH="$(dirname "$(dirname "$GI_INIT")")${PYTHONPATH:+:$PYTHONPATH}"
+    "$PYTHON" -c 'import gi'
 fi
 
 mkdir -p "$BUILD_DIR" "$DIST_DIR"
